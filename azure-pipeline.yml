@@ -1,0 +1,104 @@
+trigger:
+  branches:
+    include: ["master"]
+  tags:
+    include: ['*']
+
+pr:
+  - master
+
+jobs:
+  - job: build
+    # Due to the simple nature of the binary
+    # We only need to test that it cross compiles
+    # Clippy/Lint/Tests don't need to run for all platforms
+    strategy:
+      matrix:
+        windows:
+          imageName: 'windows-latest'
+        mac:
+          imageName: 'macOS-latest'
+        linux:
+          imageName: 'ubuntu-latest'
+    pool:
+      vmImage: $(imageName)
+    steps:
+      - template: '.azure/install-rust.yml'
+      - script: |
+          cargo build
+        displayName: "Building binary!"
+  - job: tests
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - template: '.azure/install-rust.yml'
+      - script: |
+          cargo test
+        displayName: "Running tests"
+  - job: format
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - template: '.azure/install-rust.yml'
+      - script: rustup component add rustfmt
+        displayName: Installing rustfmt
+      - script: |
+          cargo fmt -- --check
+        displayName: "Ensuring rustfmt styles are applied"
+  - job: lint
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+      - template: '.azure/install-rust.yml'
+      - script: rustup component add clippy
+        displayName: Install Clippy
+      - script: |
+          cargo clippy
+        displayName: "Clippy is taking a look!"
+  - job: deploy
+    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/'))
+    dependsOn: [build, tests, format]
+    strategy:
+      matrix:
+        windows:
+          target: 'x86_64-pc-windows-msvc'
+          imageName: 'windows-latest'
+          ext: '.exe'
+        mac:
+          target: 'x86_64-apple-darwin'
+          imageName: 'macOS-latest'
+          ext: ''
+        linux:
+          target: 'x86_64-unknown-linux-gnu'
+          imageName: 'ubuntu-latest'
+          ext: ''
+    pool:
+      vmImage: $(imageName)
+    steps:
+      - bash: |
+          CURRENT_TAG="$(Build.SourceBranch)"
+          CURRENT_TAG=${CURRENT_TAG#refs/tags/}
+          echo $CURRENT_TAG
+          echo "##vso[task.setvariable variable=CurrentTag]$CURRENT_TAG"
+        displayName: "Create CurrentTag variable"
+
+      - template: '.azure/install-rust.yml'
+      - script: |
+          cargo build --release
+        displayName: "Building optimized binary!"
+
+      - bash: |
+          mv '$(Build.SourcesDirectory)/target/release/overtime-calc$(ext)' '$(Build.ArtifactStagingDirectory)/overtime-calc-$(CurrentTag)-$(target)$(ext)'
+        displayName: Moving release build to publishing directory
+
+      - task: GithubRelease@0
+        inputs:
+          gitHubConnection: 'MathspyRelease'
+          repositoryName: '$(Build.Repository.Name)'
+          action: 'edit'
+          target: '$(Build.SourceVersion)'
+          tagSource: 'auto'
+          assets: '$(Build.ArtifactStagingDirectory)/overtime-calc-$(CurrentTag)-$(target)$(ext)'
+          title: '$(CurrentTag)'
+          assetUploadMode: 'replace'
+          addChangeLog: false
