@@ -1,0 +1,49 @@
+trigger:
+  branches:
+    include: ["master"]
+  tags:
+    include: ['*']
+
+pr:
+  - master
+
+strategy:
+  matrix:
+    windows-stable:
+      imageName: 'windows-latest'
+      rustup_toolchain: stable
+    mac-stable:
+      imageName: 'macOS-latest'
+      rustup_toolchain: stable
+    linux-stable:
+      imageName: 'ubuntu-latest'
+      rustup_toolchain: stable
+
+pool:
+  vmImage: $(imageName)
+
+jobs:
+  - job: build
+    steps:
+      - script: |
+          cargo build
+        displayName: "Building binary!"
+  - job: tests
+    steps:
+      - script: |
+          cargo test
+        displayName: "Running tests"
+  - job: format
+    steps:
+      - script: rustup component add rustfmt
+        displayName: Installing rustfmt
+      - script: |
+          cargo fmt -- --check
+        displayName: "Ensuring rustfmt styles are applied"
+  - job: lint
+    steps:
+      - script: rustup component add clippy
+        displayName: Install Clippy
+      - script: |
+          cargo clippy
+        displayName: "Clippy is taking a look!"
