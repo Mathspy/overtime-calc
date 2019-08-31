@@ -1,0 +1,40 @@
+# Week 1
+4h30m
+4h50m
+4h
+5h50m
+3h20m
+6h
+5h15m
+-12h
+
+# A really long annoying week 2
+4h45m
+6h15m
+4h
+3h20m
+5h55m
+6h10m
+7h
+6h # Super overtime
+5h50m
+5h30m
+4h50m
+4h
+5h50m
+4h45m
+4h30m
+3h10m
+3h45m
+4h30m
+3h
+4h5m
+4h30m
+-12h
+
+// I can also use these comments
+5h45m
+6h20m
+4h15m
+4h20m
+-12h
