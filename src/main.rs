@@ -1,58 +1,175 @@
-use regex::Regex;
-use std::env;
+#![deny(clippy::all)]
+
+use clap::{App, Arg, ArgMatches};
+use constants::HOURS_TO_MINUTES;
+use duration::Duration;
+use error::Error;
 use std::fs::File;
-use std::io::prelude::*;
-use std::io::{self, BufReader};
+use std::io::{self, BufRead, BufReader, Read, Write};
+use std::iter;
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-fn main() -> io::Result<()> {
-    let args: Vec<String> = env::args().collect();
+mod duration;
 
-    let buffer = BufReader::new(File::open(&args[1])?);
+mod error {
+    #[derive(Debug, PartialEq)]
+    pub struct Error(pub String);
+}
 
-    // Will never error because this is a valid regex
-    let shift_regex = Regex::new(r"(-)?(?:(\d+)h)?(?:(\d+)m)?").unwrap();
+mod constants {
+    pub const HOURS_TO_MINUTES: i32 = 60;
+}
 
-    let total_minutes = buffer
-        .lines()
-        .map(|shift| {
-            let shift = shift.expect("each line should be accessible from the file");
-            if shift.starts_with("#") || shift.starts_with("//") {
-                return 0;
-            }
+const WRITE_ERROR: &str = "To be able to write to stdout/err";
 
-            let shift_details = shift_regex
-                .captures(&shift)
-                .or_else(|| {
-                    eprintln!("Expected shift: {} to be formated like 999h54m", shift);
-                    None
-                })
-                // We already logged error and are fine with crashing
-                .unwrap();
+fn main() {
+    let args = App::new("Overtime calculator")
+        .version("0.2")
+        .author("Mathspy T. <mathspy257@gmail.com>")
+        .about("Helps you calculate your overtime")
+        .arg(
+            Arg::with_name("location")
+                .value_name("FILE")
+                .help("Points to utf8 text encoded file of overtime shifts")
+                .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("hours")
+                .long("hours")
+                .short("h")
+                .value_name("HOURS")
+                .help("Determines the contract's weekly time required to work")
+                .default_value("10")
+                .takes_value(true),
+        )
+        .get_matches();
 
-            // Get the hours from regex's capture groups
-            let hours = shift_details
-                .get(2)
-                // Since we are capturing (\d+) it will always be a number
-                .map(|m| m.as_str().parse::<i64>().unwrap())
-                .unwrap_or(0);
-            // Get the minutes from regex's capture groups
-            let minutes = shift_details
-                .get(3)
-                // Since we are capturing (\d+) it will always be a number
-                .map(|m| m.as_str().parse::<i64>().unwrap())
-                .unwrap_or(0);
+    let _ = real_main(args)
+        .map(|duration| {
+            let mut stdout = StandardStream::stdout(ColorChoice::Always);
 
-            let negative = if shift_details.get(1).is_some() {
-                -1
-            } else {
-                1
-            };
+            let _ = stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)));
+            write!(&mut stdout, "info: ").expect(WRITE_ERROR);
 
-            negative * (hours * 60 + minutes)
+            let _ = stdout.reset();
+            let total_minutes = duration.minutes;
+            writeln!(
+                &mut stdout,
+                "Total overtime is: {}h{}m",
+                total_minutes / 60,
+                total_minutes % 60
+            )
+            .expect(WRITE_ERROR);
         })
-        .sum::<i64>();
+        .map_err(|err| {
+            let mut stderr = StandardStream::stderr(ColorChoice::Always);
 
-    println!("{}h{}m", total_minutes / 60, total_minutes % 60);
+            let _ = stderr.set_color(ColorSpec::new().set_fg(Some(Color::Red)));
+            write!(&mut stderr, "error: ").expect(WRITE_ERROR);
 
-    Ok(())
+            let _ = stderr.reset();
+            writeln!(&mut stderr, "{}", err.0).expect(WRITE_ERROR);
+        });
+}
+
+fn real_main(args: ArgMatches) -> Result<Duration, Error> {
+    // Required parameter can't fail
+    let location = args.value_of("location").unwrap();
+
+    // There's a default for this arg so it can't fail
+    let hours_per_week = args.value_of("hours").unwrap();
+    let minutes_per_week = hours_per_week.parse::<i32>().map_err(|_| {
+        Error(format!(
+            "--hours/-h argument must be a valid integer not: {}",
+            hours_per_week
+        ))
+    })? * HOURS_TO_MINUTES;
+
+    let buffer = BufReader::new(
+        File::open(location)
+            .map_err(|err| Error(format!("Couldn't access file {} due to {}", location, err)))?,
+    );
+
+    total_time_from_buffer(buffer, minutes_per_week)
+}
+
+fn shifts_from_line(line: io::Result<String>) -> Result<Vec<String>, Error> {
+    let shift =
+        line.map_err(|_| Error("Error occurred while trying to read a line from file".to_owned()))?;
+
+    if shift.starts_with('#') || shift.starts_with("//") {
+        return Ok(vec![]);
+    }
+
+    Ok(shift
+        .split('/')
+        .map(str::trim)
+        .map(str::to_owned)
+        .collect::<Vec<String>>())
+}
+
+fn total_time_from_buffer<R: Read>(
+    buffer: BufReader<R>,
+    minutes_per_week: i32,
+) -> Result<Duration, Error> {
+    buffer
+        .lines()
+        .flat_map(shifts_from_line)
+        .flatten()
+        .map(|shift| {
+            if shift.is_empty() {
+                Ok(Duration {
+                    minutes: -minutes_per_week,
+                })
+            } else {
+                shift.parse()
+            }
+        })
+        // Last week's non-overtime time:
+        .chain(iter::once(Ok(Duration {
+            minutes: -minutes_per_week,
+        })))
+        .sum()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn calculates_a_single_day_appropriately() {
+        let buffer = BufReader::new(&b"12:00-16:00 / 19:00-00:50 / 01:30-01:50"[..]);
+        assert_eq!(
+            total_time_from_buffer(buffer, 10),
+            Ok(Duration { minutes: 600 })
+        );
+    }
+
+    #[test]
+    fn calculates_multiple_days_appropriately() {
+        let buffer = BufReader::new(
+            &b"12:00-16:00 / 19:00-00:50 / 01:30-01:50\n\
+            12:30-17:00 / 19:00-23:50"[..],
+        );
+        assert_eq!(
+            total_time_from_buffer(buffer, 10),
+            Ok(Duration { minutes: 1160 })
+        );
+    }
+
+    #[test]
+    fn calculates_multiple_weeks_and_subtracts_weekly_time() {
+        let buffer = BufReader::new(
+            &b"12:00-16:00 / 19:00-00:50 / 01:30-01:50\n\
+            12:30-17:00 / 19:00-23:50\n\
+            \n\
+            12:30-17:00 / 19:00-23:50\n\
+            12:00-16:00 / 19:00-00:50 / 01:30-01:50"[..],
+        );
+        assert_eq!(
+            total_time_from_buffer(buffer, 10),
+            Ok(Duration { minutes: 2320 })
+        );
+    }
 }
