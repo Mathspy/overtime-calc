@@ -1,5 +1,11 @@
 # Overtime Calculator
 
+<hr />
+
+[![Build Status](https://dev.azure.com/mathspy257/overtime-calc/_apis/build/status/Mathspy.overtime-calc?branchName=master)](https://dev.azure.com/mathspy257/overtime-calc/_build/latest?definitionId=3&branchName=master)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/Mathspy/overtime-calc#license)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat)](https://github.com/Mathspy/overtime-calc/pulls)
+
 This project is a gift to a friend to help them calculate their absurd overtimes.\
 It could be useful to you if you need to do the same. It can also be useful for summing up a list of durations in general
 
@@ -34,3 +40,11 @@ The file should be a simple utf8 encoded text file that looks like this:
 The original intention was to have each line be a day with several shifts and each "contract period" to be a week but there is really nothing stopping a user from not using empty new lines except every 30 days or otherwise and having different contract periods.\
 Neither is there anything stopping you from listing all your week's shifts in a single line (of course separated by `/`) if you only ever work one shift per day and want to use the fact you can have more than a "shift" on one line.\
 Neither is there anything stopping you from doing `--hour 0` to calculate full work time or anything else without any subtractions
+
+## License
+Licensed under either of <a href="LICENSE-APACHE">Apache License, Version
+2.0</a> or <a href="LICENSE-MIT">MIT license</a> at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in Overtime Calculator by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
