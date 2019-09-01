@@ -45,8 +45,8 @@ fn main() {
         )
         .get_matches();
 
-    let _ = real_main(args)
-        .map(|duration| {
+    std::process::exit(match run_app(args) {
+        Ok(duration) => {
             let mut stdout = StandardStream::stdout(ColorChoice::Always);
 
             let _ = stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)));
@@ -61,19 +61,22 @@ fn main() {
                 total_minutes % 60
             )
             .expect(WRITE_ERROR);
-        })
-        .map_err(|err| {
+            0
+        }
+        Err(error) => {
             let mut stderr = StandardStream::stderr(ColorChoice::Always);
 
             let _ = stderr.set_color(ColorSpec::new().set_fg(Some(Color::Red)));
             write!(&mut stderr, "error: ").expect(WRITE_ERROR);
 
             let _ = stderr.reset();
-            writeln!(&mut stderr, "{}", err.0).expect(WRITE_ERROR);
-        });
+            writeln!(&mut stderr, "{}", error.0).expect(WRITE_ERROR);
+            1
+        }
+    })
 }
 
-fn real_main(args: ArgMatches) -> Result<Duration, Error> {
+fn run_app(args: ArgMatches) -> Result<Duration, Error> {
     // Required parameter can't fail
     let location = args.value_of("location").unwrap();
 
