@@ -53,7 +53,7 @@ fn main() {
             write!(&mut stdout, "info: ").expect(WRITE_ERROR);
 
             let _ = stdout.reset();
-            let total_minutes = duration.minutes;
+            let total_minutes = duration.minutes();
             writeln!(
                 &mut stdout,
                 "Total overtime is: {}h{}m",
@@ -122,17 +122,13 @@ fn total_time_from_buffer<R: Read>(
         .flatten()
         .map(|shift| {
             if shift.is_empty() {
-                Ok(Duration {
-                    minutes: -minutes_per_week,
-                })
+                Ok(Duration::from_minutes(-minutes_per_week))
             } else {
                 shift.parse()
             }
         })
         // Last week's non-overtime time:
-        .chain(iter::once(Ok(Duration {
-            minutes: -minutes_per_week,
-        })))
+        .chain(iter::once(Ok(Duration::from_minutes(-minutes_per_week))))
         .sum()
 }
 
@@ -145,7 +141,7 @@ mod tests {
         let buffer = BufReader::new(&b"12:00-16:00 / 19:00-00:50 / 01:30-01:50"[..]);
         assert_eq!(
             total_time_from_buffer(buffer, 10),
-            Ok(Duration { minutes: 600 })
+            Ok(Duration::from_minutes(600))
         );
     }
 
@@ -157,7 +153,7 @@ mod tests {
         );
         assert_eq!(
             total_time_from_buffer(buffer, 10),
-            Ok(Duration { minutes: 1160 })
+            Ok(Duration::from_minutes(1160))
         );
     }
 
@@ -172,7 +168,7 @@ mod tests {
         );
         assert_eq!(
             total_time_from_buffer(buffer, 10),
-            Ok(Duration { minutes: 2320 })
+            Ok(Duration::from_minutes(2320))
         );
     }
 }
