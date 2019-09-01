@@ -5,9 +5,30 @@ use std::iter::Sum;
 use std::ops::AddAssign;
 use std::str::FromStr;
 
+// The usage of signed integers here might seem questionable but it's essential to
+// the subtraction of minutes from each other where we want to persevere the sign
 #[derive(Debug, Default, PartialEq)]
 pub struct Duration {
-    pub minutes: i32,
+    minutes: i32,
+}
+
+impl Duration {
+    pub fn from_start_to_end(
+        (start_hours, start_minutes): (i32, i32),
+        (end_hours, end_minutes): (i32, i32),
+    ) -> Self {
+        Duration {
+            minutes: (end_hours - start_hours) * HOURS_TO_MINUTES + (end_minutes - start_minutes),
+        }
+    }
+
+    pub fn from_minutes(minutes: i32) -> Self {
+        Duration { minutes }
+    }
+
+    pub fn minutes(&self) -> i32 {
+        self.minutes
+    }
 }
 
 impl FromStr for Duration {
@@ -24,25 +45,23 @@ impl FromStr for Duration {
             ))
         })?;
 
-        let hours_start = parse_time(shift_details.get(1));
-        let minutes_start = parse_time(shift_details.get(2));
-        let mut hours_end = parse_time(shift_details.get(3));
-        let minutes_end = parse_time(shift_details.get(4));
+        let start_hours = parse_time(shift_details.get(1));
+        let start_minutes = parse_time(shift_details.get(2));
+        let mut end_hours = parse_time(shift_details.get(3));
+        let end_minutes = parse_time(shift_details.get(4));
 
-        if hours_start > hours_end {
-            // This is safe because i8 from two numbers max is 99
+        if start_hours > end_hours {
+            // This is safe because i32 from two numbers max is 99
             // 99 + 24 = 123 which is still below the bound of i32
-            hours_end += 24;
+            end_hours += 24;
         }
 
-        let shift_minutes =
-            (hours_end - hours_start) * HOURS_TO_MINUTES + (minutes_end - minutes_start);
-
         // We know for a fact that this is positive due to the
-        // hours_start > hours_end check above
-        Ok(Duration {
-            minutes: shift_minutes,
-        })
+        // start_hours > end_hours check above
+        Ok(Duration::from_start_to_end(
+            (start_hours, start_minutes),
+            (end_hours, end_minutes),
+        ))
     }
 }
 
@@ -64,8 +83,6 @@ impl Sum for Duration {
     }
 }
 
-// The usage of signed integers here might seem questionable but it's essential to
-// the subtraction of minutes from each other where we want to persevere the sign
 fn parse_time(time: Option<Match<'_>>) -> i32 {
     // The unwrap below is unreachable because we will return if the Regex
     // didn't capture the numbers
@@ -102,12 +119,12 @@ mod tests {
 
     #[test]
     fn it_can_turn_strings_into_durations() {
-        assert_eq!("12:30-17:00".parse(), Ok(Duration { minutes: 270 }));
-        assert_eq!("19:00-23:50".parse(), Ok(Duration { minutes: 290 }));
-        assert_eq!("12:00-16:00".parse(), Ok(Duration { minutes: 240 }));
-        assert_eq!("19:00-00:50".parse(), Ok(Duration { minutes: 350 }));
-        assert_eq!("12:30-17:45".parse(), Ok(Duration { minutes: 315 }));
-        assert_eq!("19:00-1:15".parse(), Ok(Duration { minutes: 375 }));
+        assert_eq!("12:30-17:00".parse(), Ok(Duration::from_minutes(270)));
+        assert_eq!("19:00-23:50".parse(), Ok(Duration::from_minutes(290)));
+        assert_eq!("12:00-16:00".parse(), Ok(Duration::from_minutes(240)));
+        assert_eq!("19:00-00:50".parse(), Ok(Duration::from_minutes(350)));
+        assert_eq!("12:30-17:45".parse(), Ok(Duration::from_minutes(315)));
+        assert_eq!("19:00-1:15".parse(), Ok(Duration::from_minutes(375)));
 
         assert_eq!(
             "19:00-:15".parse::<Duration>(),
