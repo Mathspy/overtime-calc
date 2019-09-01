@@ -40,7 +40,7 @@ fn main() {
                 .short("h")
                 .value_name("HOURS")
                 .help("Determines the contract's weekly time required to work")
-                .default_value("10")
+                .default_value("12")
                 .takes_value(true),
         )
         .get_matches();
