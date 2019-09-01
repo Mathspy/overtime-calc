@@ -1,6 +1,6 @@
 #![deny(clippy::all)]
 
-use clap::{App, Arg, ArgMatches};
+use clap::{crate_authors, crate_version, App, Arg, ArgMatches};
 use constants::HOURS_TO_MINUTES;
 use duration::Duration;
 use error::Error;
@@ -24,8 +24,8 @@ const WRITE_ERROR: &str = "To be able to write to stdout/err";
 
 fn main() {
     let args = App::new("Overtime calculator")
-        .version("0.2")
-        .author("Mathspy T. <mathspy257@gmail.com>")
+        .version(crate_version!())
+        .author(crate_authors!())
         .about("Helps you calculate your overtime")
         .arg(
             Arg::with_name("location")
